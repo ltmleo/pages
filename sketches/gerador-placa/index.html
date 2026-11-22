@@ -188,36 +188,53 @@ function bowShape(fill, stroke, tails){
 }
 function bow(){ bowShape('#f6cfda', '#e3a3b6', true); }
 function duck(){
-  const cream = '#fbf3e4', line = '#d3bd9a';
+  const cream = '#fcf6e8', line = '#cdb594';
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  // pés
-  ctx.strokeStyle = '#e08a3c'; ctx.fillStyle = '#ec9a4c'; ctx.lineWidth = 8;
-  for (const x of [-18, 28]){
-    ctx.beginPath(); ctx.moveTo(x,-34); ctx.lineTo(x,-4); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(x-12,2,24,7,0,0,7); ctx.fill();
+  // pernas e pés
+  ctx.strokeStyle = '#e48c3e'; ctx.fillStyle = '#ee9d50'; ctx.lineWidth = 9;
+  for (const x of [-22, 24]){
+    ctx.beginPath(); ctx.moveTo(x,-30); ctx.lineTo(x,-8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+8,-8); ctx.quadraticCurveTo(x-14,-20,x-40,0); ctx.quadraticCurveTo(x-16,12,x+8,6); ctx.closePath(); ctx.fill();
   }
-  // cauda
-  ctx.fillStyle = cream; ctx.strokeStyle = line; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(80,-125); ctx.lineTo(155,-160); ctx.lineTo(115,-80); ctx.closePath(); ctx.fill(); ctx.stroke();
-  // corpo
-  ctx.beginPath(); ctx.ellipse(10,-95,98,70,0,0,7); ctx.fill(); ctx.stroke();
+  // silhueta única: cabeça, pescoço, peito, barriga, cauda
+  ctx.beginPath();
+  ctx.moveTo(-118,-250);
+  ctx.bezierCurveTo(-112,-278,-78,-288,-60,-268);
+  ctx.bezierCurveTo(-46,-250,-54,-226,-52,-204);
+  ctx.bezierCurveTo(-50,-172,-18,-156,32,-164);
+  ctx.bezierCurveTo(70,-170,100,-180,134,-196);
+  ctx.bezierCurveTo(140,-160,142,-130,118,-96);
+  ctx.bezierCurveTo(98,-44,44,-26,-8,-26);
+  ctx.bezierCurveTo(-74,-26,-122,-60,-116,-108);
+  ctx.bezierCurveTo(-112,-138,-94,-152,-92,-178);
+  ctx.bezierCurveTo(-90,-202,-120,-216,-118,-250);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0,-280,0,-30);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#f3e6cd');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = line; ctx.lineWidth = 3.5; ctx.stroke();
   // asa
-  ctx.fillStyle = '#f3e6cf';
-  ctx.beginPath(); ctx.ellipse(22,-100,56,34,.2,0,7); ctx.fill(); ctx.stroke();
-  // pescoço
-  const neck = () => { ctx.beginPath(); ctx.moveTo(-52,-125); ctx.quadraticCurveTo(-100,-150,-86,-215); };
-  ctx.strokeStyle = line; ctx.lineWidth = 48; neck(); ctx.stroke();
-  ctx.strokeStyle = cream; ctx.lineWidth = 42; neck(); ctx.stroke();
-  // cabeça
-  ctx.fillStyle = cream; ctx.strokeStyle = line; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(-88,-230,28,0,7); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-22,-128);
+  ctx.bezierCurveTo(24,-152,92,-148,116,-118);
+  ctx.bezierCurveTo(96,-78,34,-66,-8,-92);
+  ctx.bezierCurveTo(-26,-104,-28,-118,-22,-128);
+  ctx.fillStyle = '#f3e6cf'; ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 2.5;
+  for (const [x,y,x2,y2] of [[10,-112,60,-118],[4,-98,52,-100],[-4,-86,38,-84]]){
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo((x+x2)/2,y-8,x2,y2); ctx.stroke();
+  }
   // bico
-  ctx.fillStyle = '#ec9a4c'; ctx.strokeStyle = '#d67f2e'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-112,-232); ctx.lineTo(-152,-222); ctx.lineTo(-112,-212); ctx.closePath(); ctx.fill(); ctx.stroke();
-  // olho
-  ctx.fillStyle = '#4a3322'; ctx.beginPath(); ctx.arc(-98,-236,4.5,0,7); ctx.fill();
-  // laço no pescoço
-  ctx.save(); ctx.translate(-82,-172); ctx.scale(.42,.42); bowShape('#f0b3c6','#cf87a0',false); ctx.restore();
+  ctx.fillStyle = '#ee9d50'; ctx.strokeStyle = '#d4812f'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-116,-258); ctx.quadraticCurveTo(-140,-262,-160,-246);
+  ctx.quadraticCurveTo(-140,-232,-118,-236); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // olho e bochecha
+  ctx.fillStyle = 'rgba(240,150,170,.45)'; ctx.beginPath(); ctx.ellipse(-84,-238,11,8,0,0,7); ctx.fill();
+  ctx.fillStyle = '#4a3322'; ctx.beginPath(); ctx.arc(-96,-254,4.8,0,7); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-97.5,-255.5,1.4,0,7); ctx.fill();
+  // laço de xadrez no pescoço
+  ctx.save(); ctx.translate(-70,-192); ctx.rotate(.12); ctx.scale(.5,.5);
+  bowShape('#f0b3c6','#cf87a0',false); ctx.restore();
 }
 
 const DRAW = { bf: butterfly, duck, bow, flowers };
