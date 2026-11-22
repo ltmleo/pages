@@ -60,6 +60,11 @@ da Laura</textarea>
       <option value="4">Sem enfeites</option>
     </select>
 
+    <label style="display:flex;gap:8px;align-items:center;font-weight:400;flex-wrap:nowrap">
+      <input type="checkbox" id="useImg" checked style="width:auto"> Usar imagens de img/ (se existirem)
+    </label>
+    <div id="imgStatus" style="font-size:12px;color:#7a6a5c;margin-top:2px"></div>
+
     <label for="fmt">Formato</label>
     <select id="fmt">
       <option value="1800x1200">3:2 (1800×1200)</option>
@@ -239,6 +244,53 @@ function duck(){
 
 const DRAW = { bf: butterfly, duck, bow, flowers };
 
+/* ---------- sprites (PNG/JPG/WebP com fundo verde ou azul) ---------- */
+// key: 'g' = fundo verde #00FF00, 'b' = fundo azul #0000FF.  w/h = tamanho base (px a 1200 de altura)
+const SPRITES = {
+  duck:    { f:'goose',     key:'g', h:435, bottom:true },
+  bf:      { f:'butterfly', key:'g', w:255 },
+  flowers: { f:'flowers',   key:'b', w:230 },
+  bow:     { f:'bow',       key:'g', w:285 },
+};
+const SP = {};
+const loadImg = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; });
+
+function keyOut(img, key){
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const x = cv.getContext('2d', { willReadFrequently:true }); x.drawImage(img, 0, 0);
+  const id = x.getImageData(0, 0, w, h), p = id.data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let i = 0; i < p.length; i += 4){
+    const r = p[i], g = p[i+1], b = p[i+2];
+    const d = key === 'g' ? g - Math.max(r, b) : b - Math.max(r, g);   // quão "verde/azul" é o pixel
+    const a = d >= 70 ? 0 : d <= 25 ? 1 : (70 - d) / 45;               // borda suave
+    if (d > 0){ if (key === 'g') p[i+1] = Math.max(r, b); else p[i+2] = Math.max(r, g); } // remove vazamento da cor
+    p[i+3] = Math.round(p[i+3] * a);
+    if (p[i+3] > 25){
+      const n = i >> 2, px = n % w, py = (n / w) | 0;
+      if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
+    }
+  }
+  if (x1 < 0) return null;
+  x.putImageData(id, 0, 0);
+  const out = document.createElement('canvas'); out.width = x1-x0+1; out.height = y1-y0+1;
+  out.getContext('2d').drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+async function loadSprites(){
+  const ok = [];
+  for (const [type, d] of Object.entries(SPRITES)){
+    for (const ext of ['png','webp','jpg']){
+      const img = await loadImg(`img/${d.f}.${ext}`);
+      if (!img) continue;
+      try { const k = keyOut(img, d.key); if (k){ SP[type] = k; ok.push(d.f); } } catch(e){ /* canvas bloqueado (file://) */ }
+      break;
+    }
+  }
+  $('imgStatus').textContent = ok.length ? `Imagens carregadas: ${ok.join(', ')}` : 'Nenhuma imagem em img/ — usando desenhos vetoriais.';
+}
+
 /* ---------- render ---------- */
 async function render(){
   const [W, H] = $('fmt').value.split('x').map(Number);
@@ -254,10 +306,19 @@ async function render(){
   for (const [type, fx, fy, sz, rot = 0, flip = 0] of LAYOUTS[$('layout').value]){
     ctx.save();
     ctx.translate(fx*W, fy*H);
-    const k = sz * u * (type === 'duck' ? 1.45 : 1.7);
-    ctx.scale(flip ? -k : k, k);
-    ctx.rotate(rot*Math.PI/180);
-    DRAW[type]();
+    const spr = $('useImg').checked && SP[type];
+    if (spr){
+      const d = SPRITES[type], k = (d.w ? d.w / spr.width : d.h / spr.height) * sz * u;
+      ctx.scale(flip ? -1 : 1, 1);
+      ctx.rotate(rot*Math.PI/180);
+      const w = spr.width*k, h = spr.height*k;
+      ctx.drawImage(spr, -w/2, d.bottom ? -h : -h/2, w, h);
+    } else {
+      const k = sz * u * (type === 'duck' ? 1.45 : 1.7);
+      ctx.scale(flip ? -k : k, k);
+      ctx.rotate(rot*Math.PI/180);
+      DRAW[type]();
+    }
     ctx.restore();
   }
 
@@ -288,7 +349,7 @@ THEMES.forEach((t, i) => {
   b.onclick = () => setTheme(i);
   $('themes').appendChild(b);
 });
-['text','font','size','layout','fmt','cBg','cFrame','cText'].forEach(id => $(id).addEventListener('input', render));
+['text','font','size','layout','fmt','cBg','cFrame','cText','useImg'].forEach(id => $(id).addEventListener('input', render));
 $('save').onclick = () => c.toBlob(b => {
   const a = document.createElement('a');
   const slug = ($('text').value.split('\n')[0] || 'placa').normalize('NFD').replace(/[̀-ͯ]/g,'')
@@ -299,6 +360,7 @@ $('save').onclick = () => c.toBlob(b => {
 
 setTheme(0);
 document.fonts.ready.then(render);
+loadSprites().then(render);
 </script>
 </body>
 </html>
