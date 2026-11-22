@@ -13,7 +13,10 @@ Repositório único que hospeda várias páginas estáticas: ideias iniciais, es
 ```
 /
 ├── index.html            # hub: lista SOMENTE páginas públicas
-├── robots.txt            # Disallow: /u/  e /sketches/ (ver nota: não é segurança)
+├── robots.txt            # Disallow só de /sketches/. NUNCA citar /u/ (revela a pasta)
+├── publish.txt           # ALLOWLIST: só o que está aqui vai para o site
+├── scripts/build-site.sh # monta _site/ e valida privacidade (roda no CI)
+├── .github/workflows/pages.yml  # build + deploy no GitHub Actions
 ├── .nojekyll             # desativa Jekyll (evita ignorar pastas com "_")
 ├── ideas/<slug>/         # ideias iniciais, listadas no hub
 ├── sketches/<slug>/      # protótipos/rascunhos, listados no hub
@@ -36,7 +39,7 @@ Repositório único que hospeda várias páginas estáticas: ideias iniciais, es
 4. Se for `ideas/` ou `sketches/`: adicionar entrada no `index.html` do hub.
 5. Se for `u/`: **não** listar no hub, **não** citar a URL em nenhum arquivo do repo; entregar a URL completa só na resposta ao usuário.
 6. Testar localmente: `python3 -m http.server -d . 8000` e abrir a página.
-7. Commit na branch de trabalho; publicar apenas via merge na branch configurada no Pages.
+7. Commit na branch de trabalho; publicar via merge na `main` (o workflow faz o deploy).
 
 ### `<head>` mínimo
 ```html
@@ -51,13 +54,22 @@ Repositório único que hospeda várias páginas estáticas: ideias iniciais, es
 </head>
 ```
 
+## Publicação (GitHub Actions) — o que vai para o ar
+Pages usa **Source = GitHub Actions**. O workflow `pages.yml` roda em push na `main` e `workflow_dispatch`; em PR só valida.
+
+- **Allowlist (`publish.txt`)**: só `index.html`, `robots.txt`, `ideas/`, `sketches/`, `u/`, `p/`, `assets/`. Pasta/arquivo novo na raiz **não é publicado** até entrar na lista.
+- **Nunca publicados**: `*.md` (inclui este arquivo e `PROMPTS.md`), `.gitkeep`, `*.map`, `.env*`, chaves, `*.sqlite`, `_src/`, `*.local.html`.
+- **O build FALHA (e nada vai ao ar) se**: houver segredo/token no conteúdo; `u/<pasta>` não tiver o formato `<slug>-<hex 8+>` ou `noindex`; `index.html`/`robots.txt` citarem `/u/` ou o nome de uma pasta `u/`; página em `p/` não estiver cifrada (StatiCrypt) ou sem `noindex`; site > 100 MB.
+- Rodar localmente antes de commitar: `scripts/build-site.sh` (gera `_site/`, ignorado pelo git).
+- Se o build bloquear, **corrigir a causa**; não afrouxar a regra nem remover a checagem sem confirmação do usuário.
+
 ## Privacidade — leia antes de colocar algo sensível
 **GitHub Pages é público.** Se o repositório é público, o código-fonte também é. Níveis reais:
 
 | Nível | Mecanismo | Protege contra | NÃO protege contra |
 |---|---|---|---|
 | Público | `ideas/`, `sketches/` + hub | — | — |
-| Unlisted | `u/slug-token/` + `noindex` + `robots.txt` | Buscadores, navegação casual | Quem tem o link; repositório público expõe o caminho no código; `robots.txt` é público e revela pastas |
+| Unlisted | `u/slug-token/` + `noindex` (sem entrada no `robots.txt`) | Buscadores, navegação casual | Quem tem o link; repositório público expõe o caminho no código; `robots.txt` é público: por isso `u/` fica fora dele |
 | Protegido | `p/` com conteúdo cifrado no cliente (StatiCrypt, AES-256) | Leitura sem senha | Senha fraca; metadados (título, tamanho) |
 | Privado real | Repo privado + Pages privado (planos pagos) ou Cloudflare Access | Acesso não autorizado | — |
 

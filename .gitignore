@@ -1,0 +1,4 @@
+_site/
+_src/
+*.local.html
+.DS_Store

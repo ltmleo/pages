@@ -1,0 +1,10 @@
+# Allowlist: SÓ o que está listado aqui vai para o site público.
+# Qualquer arquivo/pasta novo fora desta lista NÃO é publicado (default = privado).
+# Um caminho por linha. Comentários com #.
+index.html
+robots.txt
+ideas
+sketches
+u
+p
+assets

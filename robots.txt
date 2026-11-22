@@ -1,4 +1,3 @@
 User-agent: *
-Disallow: /u/
 Disallow: /sketches/
-# Nota: robots.txt NAO e seguranca; e publico.
+# robots.txt e publico e NAO e seguranca. Nao listar /u/ aqui (revelaria a pasta); u/ usa noindex.
