@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gerador de placa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Italianno&family=Dancing+Script:wght@500&family=Playfair+Display:ital@1&family=Cormorant+Garamond:ital,wght@1,600&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font:15px/1.4 system-ui,sans-serif;background:#f4efe6;color:#3b2a20}
+    main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:1fr}
+    @media(min-width:860px){main{grid-template-columns:320px 1fr;align-items:start}}
+    .panel{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px #0002}
+    label{display:block;font-weight:600;margin:12px 0 4px;font-size:13px}
+    textarea,select,input[type=number]{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit}
+    textarea{min-height:90px;resize:vertical}
+    input[type=range]{width:100%}
+    .row{display:flex;gap:8px;align-items:center}
+    .row>*{flex:1}
+    input[type=color]{width:100%;height:36px;border:1px solid #ccc;border-radius:8px;padding:2px;background:#fff}
+    .themes{display:flex;gap:8px;flex-wrap:wrap}
+    .themes button{width:34px;height:34px;border-radius:50%;border:2px solid #fff;outline:1px solid #bbb;cursor:pointer}
+    .themes button.on{outline:2px solid #3b2a20}
+    #save{margin-top:16px;width:100%;padding:12px;border:0;border-radius:10px;background:#5a2a14;color:#fff;font:600 16px system-ui;cursor:pointer}
+    canvas{width:100%;height:auto;border-radius:8px;box-shadow:0 2px 10px #0003;background:#fff;display:block}
+  </style>
+</head>
+<body>
+<main>
+  <section class="panel">
+    <label for="text">Texto (Enter = nova linha)</label>
+    <textarea id="text">Chá de Bebê
+da Laura</textarea>
+
+    <label>Tema de fundo</label>
+    <div class="themes" id="themes"></div>
+    <div class="row" style="margin-top:8px">
+      <div><label for="cBg" style="margin-top:0">Xadrez</label><input type="color" id="cBg"></div>
+      <div><label for="cFrame" style="margin-top:0">Moldura</label><input type="color" id="cFrame"></div>
+      <div><label for="cText" style="margin-top:0">Texto</label><input type="color" id="cText" value="#5a2a14"></div>
+    </div>
+
+    <label for="font">Fonte</label>
+    <select id="font">
+      <option>Great Vibes</option><option>Italianno</option><option>Dancing Script</option>
+      <option>Playfair Display</option><option>Cormorant Garamond</option>
+    </select>
+
+    <label for="size">Tamanho do texto: <span id="sizeV"></span></label>
+    <input type="range" id="size" min="50" max="300" value="190">
+
+    <label for="layout">Enfeites</label>
+    <select id="layout">
+      <option value="0">Patinhos + borboletas</option>
+      <option value="1">Borboletas + 1 patinho</option>
+      <option value="2">Laço + flores + patinho</option>
+      <option value="3">2 patinhos + borboletas (topo)</option>
+      <option value="4">Sem enfeites</option>
+    </select>
+
+    <label for="fmt">Formato</label>
+    <select id="fmt">
+      <option value="1800x1200">3:2 (1800×1200)</option>
+      <option value="1754x1240">A4 paisagem (150 dpi)</option>
+      <option value="1400x1400">Quadrado</option>
+    </select>
+
+    <button id="save">Salvar PNG</button>
+  </section>
+  <section><canvas id="c"></canvas></section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const c = $('c'), ctx = c.getContext('2d');
+
+const THEMES = [
+  { n:'Rosa',    bg:'#e98aa9', frame:'#a9b99a' },
+  { n:'Verde',   bg:'#7fb27a', frame:'#f2c9d3' },
+  { n:'Azul',    bg:'#7fa8d6', frame:'#b9c9a8' },
+  { n:'Amarelo', bg:'#e8c456', frame:'#a9b99a' },
+  { n:'Lilás',   bg:'#b79ad6', frame:'#a9b99a' },
+];
+
+// [tipo, x(frac), y(frac), tamanho, rotação°, espelhar]
+const LAYOUTS = [
+  [['bf',.08,.13,.8,-15],['bf',.89,.14,1.2,10],['duck',.14,.97,1,0,1],['duck',.86,.97,1,0,0],['flowers',.23,.9,.8],['bf',.7,.86,.7,-10]],
+  [['bf',.9,.14,1.1,12],['bf',.1,.82,1.2,-10],['duck',.86,.97,1,0,0]],
+  [['bow',.5,.07,1.3],['flowers',.88,.12,1],['duck',.14,.97,1,0,1],['bf',.9,.88,.9,-8]],
+  [['bf',.1,.13,1,-10],['bf',.9,.14,1,10],['duck',.14,.97,1,0,1],['duck',.86,.97,1,0,0]],
+  [],
+];
+
+/* ---------- utilidades ---------- */
+function rgba(hex, a){
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n>>16},${n>>8&255},${n&255},${a})`;
+}
+function shade(hex, f){ // f<0 escurece
+  const n = parseInt(hex.slice(1), 16);
+  const m = v => Math.max(0, Math.min(255, Math.round(v + 255*f)));
+  return `rgb(${m(n>>16)},${m(n>>8&255)},${m(n&255)})`;
+}
+
+/* ---------- fundo, moldura ---------- */
+function gingham(W, H, u, color){
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = rgba(color, .38);
+  const t = 60*u;
+  for (let x = 0; x < W; x += 2*t) ctx.fillRect(x, 0, t, H);
+  for (let y = 0; y < H; y += 2*t) ctx.fillRect(0, y, W, t);
+}
+function frame(W, H, u, color){
+  const m = 105*u, x0 = m, y0 = m, x1 = W-m, y1 = H-m, r = 17*u;
+  ctx.fillStyle = color;
+  ctx.fillRect(x0, y0, x1-x0, y1-y0);
+  const step = r*1.8;
+  const circ = (x, y) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
+  for (let x = x0; x <= x1; x += step){ circ(x, y0); circ(x, y1); }
+  for (let y = y0; y <= y1; y += step){ circ(x0, y); circ(x1, y); }
+  // pontilhado
+  ctx.save();
+  ctx.setLineDash([1, 11*u]); ctx.lineCap = 'round'; ctx.lineWidth = 4*u;
+  ctx.strokeStyle = 'rgba(255,255,255,.85)';
+  const d = 26*u; ctx.strokeRect(x0+d, y0+d, x1-x0-2*d, y1-y0-2*d);
+  ctx.restore();
+  // painel creme
+  const p = 52*u;
+  ctx.fillStyle = '#fbf8ee';
+  ctx.strokeStyle = shade(color, -.12); ctx.lineWidth = 3*u;
+  ctx.beginPath(); ctx.roundRect(x0+p, y0+p, x1-x0-2*p, y1-y0-2*p, 8*u); ctx.fill(); ctx.stroke();
+}
+
+/* ---------- enfeites ---------- */
+function butterfly(){
+  const wing = (up) => {
+    ctx.beginPath();
+    if (up){ ctx.moveTo(0,0); ctx.bezierCurveTo(10,-40,60,-58,72,-26); ctx.bezierCurveTo(80,-4,40,10,0,0); }
+    else   { ctx.moveTo(0,0); ctx.bezierCurveTo(30,5,58,20,46,48); ctx.bezierCurveTo(34,62,6,36,0,0); }
+    const g = ctx.createLinearGradient(0,0,70,-30);
+    g.addColorStop(0,'#f6c85a'); g.addColorStop(1,'#fbe29a');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#c9983a'; ctx.lineWidth = 2; ctx.stroke();
+  };
+  for (const s of [1,-1]){ ctx.save(); ctx.scale(s,1); wing(true); wing(false); ctx.restore(); }
+  ctx.fillStyle = '#6b4a2a';
+  ctx.beginPath(); ctx.ellipse(0,5,4,22,0,0,7); ctx.fill();
+  ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0,-14); ctx.quadraticCurveTo(-8,-34,-16,-36);
+  ctx.moveTo(0,-14); ctx.quadraticCurveTo(8,-34,16,-36); ctx.stroke();
+}
+function flower(x, y, r){
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#f4b9cb'; ctx.strokeStyle = '#e08aa6'; ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++){
+    ctx.save(); ctx.rotate(i*Math.PI*2/5);
+    ctx.beginPath(); ctx.ellipse(0, -r*.62, r*.45, r*.62, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#f7d27a'; ctx.beginPath(); ctx.arc(0,0,r*.3,0,7); ctx.fill();
+  ctx.restore();
+}
+function flowers(){
+  ctx.fillStyle = '#9fb88a'; ctx.strokeStyle = '#7f9a6c'; ctx.lineWidth = 2;
+  for (const [x,y,a] of [[-70,10,-.9],[70,5,.9],[-30,-40,-.3],[40,-45,.4]]){
+    ctx.save(); ctx.translate(x,y); ctx.rotate(a);
+    ctx.beginPath(); ctx.ellipse(0,-20,10,26,0,0,7); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  flower(-40, 0, 26); flower(30, -20, 30); flower(0, 28, 22);
+}
+function bowShape(fill, stroke, tails){
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  if (tails){
+    for (const s of [1,-1]){
+      ctx.save(); ctx.scale(s,1);
+      ctx.beginPath(); ctx.moveTo(6,8); ctx.quadraticCurveTo(30,40,26,70); ctx.lineTo(14,60); ctx.lineTo(4,72); ctx.lineTo(0,10);
+      ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+  }
+  for (const s of [1,-1]){
+    ctx.save(); ctx.scale(s,1);
+    ctx.beginPath(); ctx.moveTo(4,0); ctx.bezierCurveTo(30,-40,80,-38,84,-4); ctx.bezierCurveTo(80,28,30,22,4,4);
+    ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  ctx.beginPath(); ctx.ellipse(0,2,13,15,0,0,7); ctx.fill(); ctx.stroke();
+}
+function bow(){ bowShape('#f6cfda', '#e3a3b6', true); }
+function duck(){
+  const cream = '#fbf3e4', line = '#d3bd9a';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  // pés
+  ctx.strokeStyle = '#e08a3c'; ctx.fillStyle = '#ec9a4c'; ctx.lineWidth = 8;
+  for (const x of [-18, 28]){
+    ctx.beginPath(); ctx.moveTo(x,-34); ctx.lineTo(x,-4); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x-12,2,24,7,0,0,7); ctx.fill();
+  }
+  // cauda
+  ctx.fillStyle = cream; ctx.strokeStyle = line; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(80,-125); ctx.lineTo(155,-160); ctx.lineTo(115,-80); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // corpo
+  ctx.beginPath(); ctx.ellipse(10,-95,98,70,0,0,7); ctx.fill(); ctx.stroke();
+  // asa
+  ctx.fillStyle = '#f3e6cf';
+  ctx.beginPath(); ctx.ellipse(22,-100,56,34,.2,0,7); ctx.fill(); ctx.stroke();
+  // pescoço
+  const neck = () => { ctx.beginPath(); ctx.moveTo(-52,-125); ctx.quadraticCurveTo(-100,-150,-86,-215); };
+  ctx.strokeStyle = line; ctx.lineWidth = 48; neck(); ctx.stroke();
+  ctx.strokeStyle = cream; ctx.lineWidth = 42; neck(); ctx.stroke();
+  // cabeça
+  ctx.fillStyle = cream; ctx.strokeStyle = line; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(-88,-230,28,0,7); ctx.fill(); ctx.stroke();
+  // bico
+  ctx.fillStyle = '#ec9a4c'; ctx.strokeStyle = '#d67f2e'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-112,-232); ctx.lineTo(-152,-222); ctx.lineTo(-112,-212); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // olho
+  ctx.fillStyle = '#4a3322'; ctx.beginPath(); ctx.arc(-98,-236,4.5,0,7); ctx.fill();
+  // laço no pescoço
+  ctx.save(); ctx.translate(-82,-172); ctx.scale(.42,.42); bowShape('#f0b3c6','#cf87a0',false); ctx.restore();
+}
+
+const DRAW = { bf: butterfly, duck, bow, flowers };
+
+/* ---------- render ---------- */
+async function render(){
+  const [W, H] = $('fmt').value.split('x').map(Number);
+  c.width = W; c.height = H;
+  const u = H / 1200;
+  const font = $('font').value;
+  try { await document.fonts.load(`100px "${font}"`); } catch(e){}
+
+  gingham(W, H, u, $('cBg').value);
+  frame(W, H, u, $('cFrame').value);
+
+  // enfeites
+  for (const [type, fx, fy, sz, rot = 0, flip = 0] of LAYOUTS[$('layout').value]){
+    ctx.save();
+    ctx.translate(fx*W, fy*H);
+    const k = sz * u * (type === 'duck' ? 1.45 : 1.7);
+    ctx.scale(flip ? -k : k, k);
+    ctx.rotate(rot*Math.PI/180);
+    DRAW[type]();
+    ctx.restore();
+  }
+
+  // texto (auto-ajuste à largura útil)
+  const lines = $('text').value.split('\n');
+  let fs = +$('size').value * u;
+  const maxW = W * .56, maxH = H * .62;
+  const measure = () => { ctx.font = `${fs}px "${font}", cursive`; return Math.max(...lines.map(l => ctx.measureText(l).width), 1); };
+  let w = measure();
+  if (w > maxW){ fs *= maxW / w; w = measure(); }
+  const lh = fs * 1.18;
+  if (lh*lines.length > maxH){ fs *= maxH / (lh*lines.length); measure(); }
+  const lh2 = fs * 1.18, total = lh2 * lines.length;
+  ctx.fillStyle = $('cText').value; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => ctx.fillText(l, W/2, H/2 - total/2 + lh2*(i+.5)));
+  $('sizeV').textContent = Math.round(fs/u);
+}
+
+/* ---------- UI ---------- */
+function setTheme(i){
+  $('cBg').value = THEMES[i].bg; $('cFrame').value = THEMES[i].frame;
+  document.querySelectorAll('#themes button').forEach((b, j) => b.classList.toggle('on', i === j));
+  render();
+}
+THEMES.forEach((t, i) => {
+  const b = document.createElement('button');
+  b.title = t.n; b.style.background = `linear-gradient(135deg,${t.bg} 55%,${t.frame} 55%)`;
+  b.onclick = () => setTheme(i);
+  $('themes').appendChild(b);
+});
+['text','font','size','layout','fmt','cBg','cFrame','cText'].forEach(id => $(id).addEventListener('input', render));
+$('save').onclick = () => c.toBlob(b => {
+  const a = document.createElement('a');
+  const slug = ($('text').value.split('\n')[0] || 'placa').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'placa';
+  a.href = URL.createObjectURL(b); a.download = `placa-${slug}.png`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}, 'image/png');
+
+setTheme(0);
+document.fonts.ready.then(render);
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /u/
+Disallow: /sketches/
+# Nota: robots.txt NAO e seguranca; e publico.
