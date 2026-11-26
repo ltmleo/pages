@@ -3,16 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mudou para Rodada</title>
+  <title>Esta página foi migrada: agora é a Rodada</title>
   <meta name="robots" content="noindex">
   <link rel="canonical" href="https://ltmleo.github.io/rodada/">
-  <meta http-equiv="refresh" content="0; url=../../../rodada/">
-  <style>body{font:16px/1.5 system-ui,sans-serif;display:grid;place-content:center;min-height:100vh;margin:0;text-align:center;background:#f5f2ec;color:#1f1b16}a{color:#2f6fd0;font-weight:600}</style>
+  <link rel="icon" href="https://ltmleo.github.io/rodada/icons/favicon.svg" type="image/svg+xml">
+  <style>
+    :root{--bg:#f5f2ec;--card:#fff;--ink:#1f1b16;--mut:#6f665a;--acc:#2f6fd0;--line:#e7e1d6}
+    @media(prefers-color-scheme:dark){:root{--bg:#14130f;--card:#1d1b17;--ink:#efe9de;--mut:#a89e8f;--acc:#6fa3f0;--line:#2f2c25}}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}
+    .card{max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;text-align:center}
+    h1{font-size:1.4rem;margin:0 0 8px;letter-spacing:-.01em}
+    p{margin:8px 0;color:var(--mut)}
+    .btn{display:inline-block;margin-top:14px;padding:12px 20px;border-radius:12px;background:var(--acc);color:#fff;font-weight:600;text-decoration:none}
+    .small{font-size:13px;margin-top:18px}
+  </style>
 </head>
 <body>
-  <div><h1>O painel agora é a Rodada</h1>
-  <p>Seu histórico vem junto, automaticamente.</p>
-  <p><a href="/rodada/">Abrir a Rodada</a></p></div>
-  <script>location.replace('/rodada/' + location.search + location.hash);</script>
+  <main class="card">
+    <h1>🎯 Esta página foi migrada</h1>
+    <p>O <b>Painel de desafios diários</b> agora é a <b>Rodada</b>. Seus resultados e seu histórico vieram junto, na primeira abertura.</p>
+    <a class="btn" href="https://ltmleo.github.io/rodada/" id="go">Abrir a Rodada</a>
+    <p class="small">Você será levado automaticamente em <span id="sec">6</span> segundos.</p>
+  </main>
+  <script>
+    // Preserva ?query e #hash (ex.: ?debug). Só redireciona no mesmo site.
+    const dest = 'https://ltmleo.github.io/rodada/' + location.search + location.hash;
+    document.getElementById('go').href = dest;
+    let s = 6; const t = setInterval(() => {
+      s -= 1; document.getElementById('sec').textContent = s;
+      if (s <= 0){ clearInterval(t); location.replace(dest); }
+    }, 1000);
+  </script>
 </body>
 </html>

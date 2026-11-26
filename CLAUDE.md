@@ -95,3 +95,13 @@ Regras:
 - Sempre responder com: **o que** foi criado (caminho), **por que** nessa categoria, e a **URL final** (`https://<usuario>.github.io/<repo>/<caminho>/`).
 - Apontar riscos de privacidade relevantes à página criada, em uma linha.
 - Não renomear/mover/apagar páginas existentes sem confirmação (links externos podem depender delas).
+
+## Produtizar um esboço
+Quando um esboço deste repo virar produto, fazer **sempre** estes passos, nesta ordem:
+1. **Repo próprio** `ltmleo/<nome-do-produto>`, com README, CLAUDE.md, testes e deploy por GitHub Actions (Settings › Pages › Source = GitHub Actions). O código do esboço é copiado para lá, não fica só aqui.
+2. **Ecossistema:** seguir a skill `ltm-novo-site` (repo `ltmleo/ltmleo.github.io`, `.claude/skills/ltm-novo-site/`): entrada em `src/shared/sites.json`, `<ltm-bar site="<id>">`, GA `G-714QFE3V9G` com `content_group` igual ao id, e `verify-site.mjs` antes do deploy.
+3. **Privacidade:** página `privacidade.html` no produto. Dados do usuário ficam no aparelho; o GA recebe só nomes de evento e contagens.
+4. **Migração de dados:** se o esboço guarda algo no `localStorage`, o produto deve ler a chave antiga na primeira abertura (mesma origem `ltmleo.github.io`), sem apagá-la, e mostrar um aviso único.
+5. **Página de migração no lugar do esboço:** a pasta em `sketches/` (ou `ideas/`) vira uma página com a mensagem "Esta página foi migrada" e o link para o produto, com redirecionamento automático de ~6 s. **Não apagar a pasta**: links antigos continuam funcionando. Use endereço absoluto (`https://ltmleo.github.io/<produto>/`), nunca relativo.
+6. **Hub:** trocar a entrada da página em `index.html` por um link para o produto, com status `no ar`.
+7. **Publicação:** o `main` deste repo publica o site. Não fazer push para `main` com a mudança do produto sem confirmação do dono, e confirmar antes que o deploy do produto terminou com sucesso.
