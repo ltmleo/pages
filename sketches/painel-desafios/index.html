@@ -234,7 +234,7 @@ const DEFAULT_GAMES = [
   { id:'decola',     name:'Decola.io',  emoji:'🚀', url:'https://decola.io',  on:true },
   { id:'farflung',   name:'Farflung',   emoji:'🌍', url:'https://farflung.game', on:true },
   { id:'wordle',     name:'Wordle',     emoji:'🔤', url:'https://www.nytimes.com/games/wordle/index.html', on:true },
-  { id:'connections',name:'Connections',emoji:'🔗', url:'https://www.nytimes.com/games/connections',       on:true },
+  { id:'conexo',     name:'Conexo',     emoji:'🔗', url:'https://conexo.ws',                               on:true },
   { id:'worldle',    name:'Worldle',    emoji:'🗺️', url:'https://worldle.teuteuf.fr',                      on:true },
 ];
 // Detecção do jogo pelo texto colado (ordem importa: mais específicos primeiro). Jogos sem regra caem no nome/domínio.
@@ -243,6 +243,7 @@ const DETECT = [
   ['quarteto',   /quarteto|term\.ooo\/4/i],
   ['termo',      /term\.ooo|\btermo\b/i],
   ['wordle',     /^\s*wordle\b/im],
+  ['conexo',     /conexo/i],
   ['connections',/connections/i],
   ['worldle',    /#?worldle/i],
   ['puttday',    /putt\.?day|\bputt\b/i],
@@ -252,7 +253,7 @@ const DETECT = [
 ];
 // Linhas que iniciam um bloco de compartilhar (para colar vários resultados de uma vez). Linhas com URL não contam.
 const HEADERS = [/putt\.day\s*#/i, /decola\.io/i, /#?flagle\b.*#\d/i, /^\W*farflung\s*#/i, /^\s*wordle\s+[\d.,]+/i,
-  /^\s*connections\s*$/i, /joguei\s+\S*term/i, /^\s*term\.ooo\/\d/i, /#worldle/i];
+  /^\s*connections\s*$/i, /^\W*conexo\b/i, /joguei\s+\S*term/i, /^\s*term\.ooo\/\d/i, /#worldle/i];
 
 /* ---------- estado ---------- */
 let mem = null, persistOK = true;
@@ -266,6 +267,9 @@ let S = load();
   if (g){ g.id = 'flagle'; if (g.name === 'Flagly') g.name = 'Flagle'; if (!g.url) g.url = 'https://www.flagle.io/';
     for (const d in S.log) if (S.log[d].flagly){ S.log[d].flagle = S.log[d].flagly; delete S.log[d].flagly; } }
   const f = S.games.find(x => x.id === 'farflung'); if (f && !f.url) f.url = 'https://farflung.game';
+  const c = S.games.findIndex(x => x.id === 'connections');           // Connections (NYT) -> Conexo (pt); histórico antigo fica guardado
+  if (c >= 0 && !S.games.some(x => x.id === 'conexo') && /nytimes\.com\/games\/connections/.test(S.games[c].url))
+    S.games[c] = { id:'conexo', name:'Conexo', emoji:'🔗', url:'https://conexo.ws', on:S.games[c].on };
 })();
 function save(){
   mem = S;
@@ -314,8 +318,8 @@ function parseShare(text, gameId){
   const out = { raw: text.trim().slice(0, 800) };
   const num = text.match(/#\s?([\d.,]+)/) || text.match(/(?:wordle|puzzle)\s+#?([\d.,]+)/i);
   if (num) out.num = num[1];
-  if (gameId === 'connections'){                                // 🟨🟩🟦🟪: linhas de 4 quadradinhos
-    const rows = text.split('\n').map(l => [...l.matchAll(/[🟨🟩🟦🟪]/gu)].map(m => m[0])).filter(r => r.length === 4);
+  if (gameId === 'connections' || gameId === 'conexo'){       // linhas de 4 quadradinhos coloridos (formato do Conexo não confirmado)
+    const rows = text.split('\n').map(l => [...l.matchAll(/[🟨🟩🟦🟪🟥🟧🟫]/gu)].map(m => m[0])).filter(r => r.length === 4);
     if (rows.length){
       const solved = rows.filter(r => r.every(c => c === r[0])).length, mistakes = rows.length - solved;
       out.win = solved === 4; out.score = out.win ? (mistakes ? `${mistakes} erro(s)` : 'perfeito') : `${solved}/4 grupos`;
