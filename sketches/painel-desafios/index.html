@@ -91,6 +91,17 @@
     .nolink{font-size:12px;color:var(--faint)}
     .allset{text-align:center;padding:14px;font-weight:600;color:var(--ok);background:var(--ok-soft);border-radius:var(--r)}
 
+    /* seletor de jogos */
+    .picker{padding:14px;margin-bottom:10px}
+    .picker[hidden]{display:none}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 12px}
+    .chip{border-radius:999px;padding:8px 14px 8px 10px;font-weight:600;background:var(--surface-2);color:var(--mut)}
+    .chip .tick{display:inline-grid;place-content:center;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);font-size:11px;color:transparent}
+    .chip[aria-pressed=true]{background:var(--acc-soft);border-color:var(--acc);color:var(--ink)}
+    .chip[aria-pressed=true] .tick{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+    .linkbtn{border:0;background:none;padding:4px 2px;color:var(--acc);font-weight:600;font-size:13px}
+    .sec-head .actions{display:flex;gap:10px;align-items:baseline}
+
     /* abas */
     .tabs{display:flex;gap:4px;padding:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:13px;overflow-x:auto;margin-top:26px}
     .tabs button{flex:1;border:0;background:transparent;color:var(--mut);padding:8px 10px;border-radius:9px;font-size:13px}
@@ -171,7 +182,15 @@
   </section>
 
   <section>
-    <div class="sec-head"><h2>Hoje</h2><span class="hint" id="todayHint"></span></div>
+    <div class="sec-head"><h2>Hoje</h2>
+      <div class="actions"><span class="hint" id="todayHint"></span><button class="linkbtn" id="pickBtn" aria-expanded="false" aria-controls="picker">Escolher jogos</button></div></div>
+    <div class="box picker" id="picker" hidden>
+      <h2 id="pickTitle">Quais jogos você joga?</h2>
+      <div class="hint">Toque para ligar ou desligar. Os desligados somem do painel e não contam na sequência; o histórico deles fica guardado.</div>
+      <div class="chips" id="chips"></div>
+      <div class="row"><button class="primary sm" id="pickDone">Pronto</button><span class="spacer"></span>
+        <button class="linkbtn" id="pickAll">Todos</button><button class="linkbtn" id="pickEdit">Editar nomes e links</button></div>
+    </div>
     <div class="list" id="cards"></div>
   </section>
 
@@ -437,7 +456,8 @@ function render(){
   // lista do dia: pendentes primeiro
   const order = [...a].sort((x, y) => (doneOn(t, x.id) ? 1 : 0) - (doneOn(t, y.id) ? 1 : 0));
   $('todayHint').textContent = !a.length ? '' : done === a.length ? 'tudo feito 🎉' : `${a.length - done} pendente${a.length - done > 1 ? 's' : ''}`;
-  $('cards').replaceChildren(...order.map(g => {
+  if (!a.length){ $('cards').replaceChildren(h('div', {class:'box allset', style:'color:var(--mut);background:var(--surface)'}, 'Nenhum jogo escolhido. Toque em "Escolher jogos".')); }
+  else $('cards').replaceChildren(...order.map(g => {
     const e = entry(t, g.id), st = streak(d => doneOn(d, g.id)), url = safeUrl(g.url), cls = stateOf(e);
     const res = !e ? (st.cur ? `sequência de ${st.cur} — não perca` : 'pendente') : e.score ? `${e.score}${e.num ? ' · #' + e.num : ''}` : 'feito';
     return h('div', {class:`box item ${cls}`},
@@ -598,6 +618,25 @@ $('resetgames').onclick = () => {
   const keep = S.games.filter(g => !DEFAULT_GAMES.some(d => d.id === g.id)).map(g => ({ ...g, on:false }));
   S.games = [...structuredClone(DEFAULT_GAMES), ...keep]; save(); render(); renderGames();
 };
+
+/* seletor de jogos */
+function renderChips(){
+  $('chips').replaceChildren(...S.games.map(g => h('button', {class:'chip', 'aria-pressed': String(!!g.on), onclick: () => { g.on = !g.on; save(); render(); renderChips(); }},
+    h('span', {class:'tick'}, '✓'), `${g.emoji || '🎯'} ${g.name}`)));
+}
+function openPicker(open){
+  $('picker').hidden = !open; $('pickBtn').setAttribute('aria-expanded', open); $('pickBtn').textContent = open ? 'Fechar' : 'Escolher jogos';
+  if (open) renderChips();
+}
+$('pickBtn').onclick = () => openPicker($('picker').hidden);
+$('pickDone').onclick = () => {
+  if (!active().length) return say('Escolha pelo menos um jogo.', true);
+  S.picked = true; save(); openPicker(false); say(`${active().length} jogos no seu painel.`);
+};
+$('pickAll').onclick = () => { S.games.forEach(g => g.on = true); save(); render(); renderChips(); };
+$('pickEdit').onclick = () => { renderGames(); $('dlg').showModal(); };
+$('dlg').addEventListener('close', () => { if (!$('picker').hidden) renderChips(); });
+if (!S.picked){ $('pickTitle').textContent = 'Bem-vindo! Quais jogos você joga?'; openPicker(true); }
 
 /* abas */
 function showTab(name){
