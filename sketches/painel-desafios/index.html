@@ -253,7 +253,7 @@ const DETECT = [
 ];
 // Linhas que iniciam um bloco de compartilhar (para colar vários resultados de uma vez). Linhas com URL não contam.
 const HEADERS = [/putt\.day\s*#/i, /decola\.io/i, /#?flagle\b.*#\d/i, /^\W*farflung\s*#/i, /^\s*wordle\s+[\d.,]+/i,
-  /^\s*connections\s*$/i, /^\W*conexo\b/i, /joguei\s+\S*term/i, /^\s*term\.ooo\/\d/i, /#worldle/i];
+  /^\s*connections\s*$/i, /conexo\.ws|^\W*conexo\b/i, /joguei\s+\S*term/i, /^\s*term\.ooo\/\d/i, /#worldle/i];
 
 /* ---------- estado ---------- */
 let mem = null, persistOK = true;
@@ -318,8 +318,20 @@ function parseShare(text, gameId){
   const out = { raw: text.trim().slice(0, 800) };
   const num = text.match(/#\s?([\d.,]+)/) || text.match(/(?:wordle|puzzle)\s+#?([\d.,]+)/i);
   if (num) out.num = num[1];
-  if (gameId === 'connections' || gameId === 'conexo'){       // linhas de 4 quadradinhos coloridos (formato do Conexo não confirmado)
-    const rows = text.split('\n').map(l => [...l.matchAll(/[🟨🟩🟦🟪🟥🟧🟫]/gu)].map(m => m[0])).filter(r => r.length === 4);
+  if (gameId === 'conexo'){                                     // "got it in 10 guesses and 4 hints" + ❌ erro · 💡 dica · quadrado = grupo achado
+    const g = text.match(/(\d+)\s*(?:guesses|tentativas|palpites|intentos)/i), d = text.match(/(\d+)\s*(?:hints?|dicas?|pistas?)/i);
+    const groups = [...text.matchAll(/[🟨🟩🟦🟪🟥🟧🟫]/gu)].length, wrong = [...text.matchAll(/❌/gu)].length;
+    if (g || groups){
+      const parts = [];
+      if (g) parts.push(`${g[1]} tentativas`); else if (groups || wrong) parts.push(`${groups + wrong} tentativas`);
+      if (d && +d[1]) parts.push(`${d[1]} dica${+d[1] > 1 ? 's' : ''}`);
+      out.score = parts.join(' · '); out.n = Number(g ? g[1] : groups + wrong);
+      if (groups) out.win = groups >= 4;
+      return out;
+    }
+  }
+  if (gameId === 'connections'){                                // 🟨🟩🟦🟪: linhas de 4 quadradinhos
+    const rows = text.split('\n').map(l => [...l.matchAll(/[🟨🟩🟦🟪]/gu)].map(m => m[0])).filter(r => r.length === 4);
     if (rows.length){
       const solved = rows.filter(r => r.every(c => c === r[0])).length, mistakes = rows.length - solved;
       out.win = solved === 4; out.score = out.win ? (mistakes ? `${mistakes} erro(s)` : 'perfeito') : `${solved}/4 grupos`;
@@ -371,9 +383,15 @@ function splitShares(text){
   return blocks.map(b => b.trim()).filter(Boolean);
 }
 function textDate(t){                                           // "(26.11.2026)" no texto do jogo
+  let k = null;
   const m = t.match(/\((\d{2})\.(\d{2})\.(\d{4})\)/);
-  if (!m) return null; const k = `${m[3]}-${m[2]}-${m[1]}`;
-  return k <= todayKey() ? k : null;
+  if (m) k = `${m[3]}-${m[2]}-${m[1]}`;
+  else {                                                        // 11/26/2026 (EUA) ou 26/11/2026 (BR): só quando não é ambíguo
+    const n = t.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+    if (n){ const a = +n[1], b = +n[2];
+      if (a > 12 && b <= 12) k = `${n[3]}-${pad(b)}-${pad(a)}`; else if (b > 12 && a <= 12) k = `${n[3]}-${pad(a)}-${pad(b)}`; }
+  }
+  return k && k <= todayKey() ? k : null;
 }
 
 /* ---------- sequências e estatísticas ---------- */
@@ -528,8 +546,9 @@ $('save').onclick = () => {
     say(`${g} ${fmtBR(d)} já estava registrado (${entry(d, id).score || 'feito'}). Cole outro texto para substituir.`, true); return;
   }
   const parsed = txt.trim() ? parseShare(txt, id) : {};
-  setEntry(d, id, { ...parsed, ts: Date.now() });
-  say(`Registrado: ${g} ${fmtBR(d)}${parsed.score ? ' · ' + parsed.score : txt.trim() ? ' · sem pontuação reconhecida (texto guardado)' : ' · feito'}`);
+  const day = (txt.trim() && textDate(txt)) || d;
+  setEntry(day, id, { ...parsed, ts: Date.now() });
+  say(`Registrado: ${g} ${fmtBR(day)}${parsed.score ? ' · ' + parsed.score : txt.trim() ? ' · sem pontuação reconhecida (texto guardado)' : ' · feito'}`);
   $('paste').value = ''; $('detect').textContent = ''; $('dsel').value = todayKey(); $('gsel').value = '';
   render();
 };
