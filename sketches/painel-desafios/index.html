@@ -119,15 +119,15 @@
 const KEY = 'painel-desafios-v1';
 const $ = id => document.getElementById(id);
 
-/* ---------- jogos iniciais (links sem certeza ficam vazios; edite em "Gerenciar jogos") ---------- */
+/* ---------- jogos iniciais (links vêm dos textos de compartilhar reais; edite em "Gerenciar jogos") ---------- */
 const DEFAULT_GAMES = [
   { id:'termo',      name:'Termo',      emoji:'🟩', url:'https://term.ooo',   on:true },
   { id:'dueto',      name:'Dueto',      emoji:'🟨', url:'https://term.ooo/2', on:true },
   { id:'quarteto',   name:'Quarteto',   emoji:'🟦', url:'https://term.ooo/4', on:true },
   { id:'puttday',    name:'Putt.day',   emoji:'⛳', url:'https://putt.day',   on:true },
-  { id:'flagly',     name:'Flagly',     emoji:'🚩', url:'',                   on:true },
+  { id:'flagle',     name:'Flagle',     emoji:'🚩', url:'https://www.flagle.io/', on:true },
   { id:'decola',     name:'Decola.io',  emoji:'🚀', url:'https://decola.io',  on:true },
-  { id:'farflung',   name:'Farflung',   emoji:'🌍', url:'',                   on:true },
+  { id:'farflung',   name:'Farflung',   emoji:'🌍', url:'https://farflung.game', on:true },
   { id:'wordle',     name:'Wordle',     emoji:'🔤', url:'https://www.nytimes.com/games/wordle/index.html', on:true },
   { id:'connections',name:'Connections',emoji:'🔗', url:'https://www.nytimes.com/games/connections',       on:true },
   { id:'worldle',    name:'Worldle',    emoji:'🗺️', url:'https://worldle.teuteuf.fr',                      on:true },
@@ -141,7 +141,13 @@ const DETECT = [
   ['connections',/connections/i],
   ['worldle',    /#?worldle/i],
   ['puttday',    /putt\.?day|\bputt\b/i],
+  ['decola',     /decola\.io|\bvoo\s*#/i],
+  ['flagle',     /flagle|flagly/i],
+  ['farflung',   /farflung/i],
 ];
+// Linhas que iniciam um bloco de compartilhar (para colar vários resultados de uma vez). Linhas com URL não contam.
+const HEADERS = [/putt\.day\s*#/i, /decola\.io/i, /#?flagle\b.*#\d/i, /^\W*farflung\s*#/i, /^\s*wordle\s+[\d.,]+/i,
+  /^\s*connections\s*$/i, /joguei\s+\S*term/i, /#worldle/i];
 
 /* ---------- estado ---------- */
 let mem = null, persistOK = true;
@@ -150,6 +156,12 @@ function load(){
   return mem || { v:1, games: structuredClone(DEFAULT_GAMES), log:{} };
 }
 let S = load();
+(function migrate(){                                              // Flagly -> Flagle; links do Farflung
+  const g = S.games.find(x => x.id === 'flagly');
+  if (g){ g.id = 'flagle'; if (g.name === 'Flagly') g.name = 'Flagle'; if (!g.url) g.url = 'https://www.flagle.io/';
+    for (const d in S.log) if (S.log[d].flagly){ S.log[d].flagle = S.log[d].flagly; delete S.log[d].flagly; } }
+  const f = S.games.find(x => x.id === 'farflung'); if (f && !f.url) f.url = 'https://farflung.game';
+})();
 function save(){
   mem = S;
   try { localStorage.setItem(KEY, JSON.stringify(S)); persistOK = true; } catch(e){ persistOK = false; }
@@ -204,6 +216,19 @@ function parseShare(text, gameId){
       out.n = mistakes; return out;
     }
   }
+  if (gameId === 'puttday'){                                    // "#198 ⛳ 9/7 Double bogey" = tacadas/par + nome do resultado
+    const m = text.match(/(\d+)\s*\/\s*(\d+)[ \t]*([^\n]*)/);
+    if (m){ out.score = `${m[1]}/${m[2]} ${m[3].trim()}`.trim(); out.n = Number(m[1]); out.diff = m[1] - m[2]; return out; }
+  }
+  if (gameId === 'decola'){                                     // "Cheguei a MARTE · 120 pts"
+    const m = text.match(/Cheguei\s+a\s+(.+?)\s*[·•|\-]\s*(\d+)\s*pts?/i), p = text.match(/(\d+)\s*pts?\b/i);
+    if (m){ out.score = `${m[1].trim()} · ${m[2]} pts`; out.n = Number(m[2]); out.win = true; return out; }
+    if (p){ out.score = `${p[1]} pts`; out.n = Number(p[1]); return out; }
+  }
+  if (gameId === 'farflung'){                                   // "Farflung #53 · 125/500 km"
+    const m = text.match(/(\d+)\s*\/\s*(\d+)\s*km/i);
+    if (m){ out.score = `${m[1]}/${m[2]} km`; out.n = Number(m[1]); return out; }
+  }
   const fr = [...text.matchAll(/\b([1-9]|X)\/(\d{1,2})\b/gi)];     // 4/6, X/6, 5/7 & 4/7 (dueto/quarteto)
   if (fr.length){
     out.score = fr.map(m => `${m[1].toUpperCase()}/${m[2]}`).join(' · ');
@@ -214,6 +239,21 @@ function parseShare(text, gameId){
   const st = text.match(/(\d+)\s*(?:strokes?|shots?|tacadas?|putts?|tentativas?|tries|attempts?)/i);
   if (st){ out.score = `${st[1]} ${/tacada/i.test(st[0]) ? 'tacadas' : st[0].replace(/^\d+\s*/, '')}`; out.n = Number(st[1]); out.win = true; }
   return out;
+}
+
+function splitShares(text){
+  const blocks = []; let cur = [];
+  for (const line of text.split('\n')){
+    if (!/https?:\/\//i.test(line) && HEADERS.some(re => re.test(line)) && cur.some(l => l.trim())){ blocks.push(cur.join('\n')); cur = []; }
+    cur.push(line);
+  }
+  blocks.push(cur.join('\n'));
+  return blocks.map(b => b.trim()).filter(Boolean);
+}
+function textDate(t){                                           // "(26.11.2026)" no texto do jogo
+  const m = t.match(/\((\d{2})\.(\d{2})\.(\d{4})\)/);
+  if (!m) return null; const k = `${m[3]}-${m[2]}-${m[1]}`;
+  return k <= todayKey() ? k : null;
 }
 
 /* ---------- sequências e estatísticas ---------- */
@@ -310,9 +350,11 @@ function toggle(d, id){
 function pick(id){ $('gsel').value = id; $('paste').focus(); $('paste').scrollIntoView({behavior:'smooth', block:'center'}); }
 function say(t, bad){ $('msg').textContent = t; $('msg').style.color = bad ? 'var(--bad)' : 'var(--ok)'; }
 function onPasteChange(){
-  const g = detectGame($('paste').value);
+  const t = $('paste').value, nb = splitShares(t).length;
+  if (nb > 1){ $('detect').textContent = `${nb} resultados detectados: clique em Registrar para salvar todos.`; return; }
+  const g = detectGame(t);
   if (g && !$('gsel').value) $('gsel').value = g;
-  $('detect').textContent = $('paste').value.trim() ? (g ? `Detectado: ${S.games.find(x => x.id === g).name}` : 'Jogo não reconhecido: escolha na lista.') : '';
+  $('detect').textContent = t.trim() ? (g ? `Detectado: ${S.games.find(x => x.id === g).name}` : 'Jogo não reconhecido: escolha na lista.') : '';
 }
 $('paste').addEventListener('input', () => { $('gsel').value = ''; onPasteChange(); });
 $('readclip').onclick = async () => {
@@ -322,6 +364,19 @@ $('readclip').onclick = async () => {
 $('clear').onclick = () => { $('paste').value = ''; $('gsel').value = ''; onPasteChange(); say(''); };
 $('save').onclick = () => {
   const id = $('gsel').value, d = $('dsel').value || todayKey(), txt = $('paste').value;
+  const blocks = txt.trim() ? splitShares(txt) : [];
+  if (blocks.length > 1){                                        // vários resultados colados de uma vez
+    const ok = [], bad = [];
+    for (const b of blocks){
+      const gid = detectGame(b);
+      if (!gid){ bad.push(b.split('\n')[0].slice(0, 30)); continue; }
+      const day = textDate(b) || d, g = S.games.find(x => x.id === gid);
+      const parsed = parseShare(b, gid); setEntry(day, gid, { ...parsed, ts: Date.now() });
+      ok.push(`${g.name}${parsed.score ? ' (' + parsed.score + ')' : ''}`);
+    }
+    say(`Registrados ${ok.length}: ${ok.join(', ')}${bad.length ? ` · não reconhecidos: ${bad.join(' | ')}` : ''}`, bad.length > 0);
+    $('paste').value = ''; $('detect').textContent = ''; $('dsel').value = todayKey(); $('gsel').value = ''; render(); return;
+  }
   if (!id) return say('Escolha o jogo.', true);
   if (d > todayKey()) return say('Dia no futuro não vale.', true);
   const g = S.games.find(x => x.id === id).name;
