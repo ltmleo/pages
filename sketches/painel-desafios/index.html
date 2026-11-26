@@ -161,6 +161,7 @@
       <div class="eyebrow" id="today"></div>
       <h1>Desafios do dia</h1>
       <div class="kpis" id="badges"></div>
+      <button class="primary sm" id="shareBtn" style="margin-top:12px">↗ Compartilhar meu dia</button>
     </div>
     <div class="ring" id="ring" aria-hidden="true"></div>
   </header>
@@ -197,7 +198,7 @@
   <nav class="tabs" role="tablist" aria-label="Seções">
     <button role="tab" data-tab="hist">Histórico</button>
     <button role="tab" data-tab="stats">Estatísticas</button>
-    <button role="tab" data-tab="share">Resumo</button>
+    <button role="tab" data-tab="share">Compartilhar</button>
     <button role="tab" data-tab="data">Dados</button>
   </nav>
 
@@ -214,7 +215,9 @@
 
   <section class="box tabpanel stack" id="tab-share" role="tabpanel" hidden>
     <pre id="summary"></pre>
-    <div class="row"><button class="primary" id="copysum">Copiar resumo</button><span class="hint">Só o placar, sem os quadradinhos (sem spoiler).</span></div>
+    <label class="row hint" style="gap:8px;cursor:pointer"><input type="checkbox" id="shareDetails" checked> Incluir o placar de cada jogo</label>
+    <div class="row"><button class="primary" id="copysum">↗ Compartilhar</button><button id="copyonly" class="ghost sm">Só copiar</button>
+      <span class="hint">Sem os quadradinhos dos jogos: não dá spoiler.</span></div>
   </section>
 
   <section class="box tabpanel stack" id="tab-data" role="tabpanel" hidden>
@@ -508,11 +511,52 @@ function renderStats(){
         ...item('Sequência', st.cur), ...item('Recorde', st.best)));
   }));
 }
-function summaryText(t){
-  const a = active(), done = a.filter(g => doneOn(t, g.id)).length, sAll = streak(allDone).cur;
-  const lines = a.map(g => { const e = entry(t, g.id); return `${e ? (e.win === false ? '❌' : '✅') : '⬜'} ${g.name}${e?.score ? ' ' + e.score : ''}`; });
-  return [`📅 Desafios ${fmtBR(t)} — ${done}/${a.length}`, ...lines, sAll ? `🔥 ${sAll} dias completos seguidos` : ''].filter(Boolean).join('\n');
+// Direção do "melhor": low = menos tentativas/tacadas é melhor; high = mais pontos; null = sem comparação
+const BETTER = { decola:'high', farflung:null };
+const pageUrl = () => location.origin + location.pathname;
+const fmtShort = k => k.slice(8) + '/' + k.slice(5, 7);
+const fmtN = n => Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
+function insights(t){
+  const a = active(), played = a.map(g => [g, entry(t, g.id)]).filter(([, e]) => e);
+  const res = played.filter(([, e]) => typeof e.win === 'boolean'), out = [];
+  if (a.length > 1 && played.length === a.length && res.length && res.every(([, e]) => e.win)) out.push('💯 Dia perfeito: acertei tudo');
+  // só afirma a sequência se HOJE também conta (senão o texto diria algo que ainda não é verdade)
+  const sAll = allDone(t) ? streak(allDone).cur : 0, sAny = anyDone(t) ? streak(anyDone).cur : 0;
+  if (sAll >= 2) out.push(`🔥 ${sAll} dias seguidos completando tudo`);
+  else if (sAny >= 3) out.push(`📆 ${sAny} dias seguidos jogando`);
+  let rec = null, above = null;
+  for (const [g, e] of played){
+    const dir = g.id in BETTER ? BETTER[g.id] : 'low';
+    if (!dir || typeof e.n !== 'number' || e.win === false) continue;
+    const hist = Object.keys(S.log).filter(d => d < t).map(d => S.log[d][g.id]).filter(x => x && typeof x.n === 'number' && x.win !== false).map(x => x.n);
+    if (hist.length < 3) continue;
+    const best = dir === 'low' ? Math.min(...hist) : Math.max(...hist), avg = hist.reduce((x, y) => x + y, 0) / hist.length;
+    const gain = dir === 'low' ? (avg - e.n) / avg : (e.n - avg) / avg;
+    if ((dir === 'low' ? e.n < best : e.n > best) && (!rec || gain > rec.gain)) rec = { gain, s:`🏆 Recorde no ${g.name}: ${e.score}` };
+    else if (gain > 0.1 && (!above || gain > above.gain)) above = { gain, s:`⭐ ${g.name} ${e.score} (minha média: ${fmtN(avg)})` };
+  }
+  if (rec) out.push(rec.s); else if (above) out.push(above.s);
+  if (out.length < 3){
+    const top = a.map(g => [g, streak(d => doneOn(d, g.id)).cur]).filter(([g]) => doneOn(t, g.id)).sort((x, y) => y[1] - x[1])[0];
+    if (top && top[1] >= 5 && top[1] > Math.max(sAll, sAny)) out.push(`📈 ${top[1]} dias seguidos de ${top[0].name}`);
+  }
+  return out.slice(0, 3);
 }
+function shareText(t, details = true){
+  const a = active(), done = a.filter(g => doneOn(t, g.id)).length;
+  const sq = a.map(g => ({ done:'🟩', lost:'🟥', neu:'🟦', pend:'⬜' })[stateOf(entry(t, g.id))]).join('');
+  const L = [`🎯 Desafios do dia · ${fmtShort(t)} · ${done}/${a.length}`, sq];
+  if (details){
+    const rows = a.filter(g => doneOn(t, g.id)).map(g => { const e = entry(t, g.id); return `${g.emoji || '🎯'} ${g.name} ${e.score || '✓'}`; });
+    if (rows.length) L.push('', ...rows);
+  }
+  const ins = insights(t);
+  if (ins.length) L.push('', ...ins);
+  L.push('', done === a.length ? 'Consegue fazer melhor?' : done ? `Consegue bater meu ${done}/${a.length}?` : 'Bora jogar?', pageUrl());
+  return L.join('\n');
+}
+const detailsPref = () => $('shareDetails').checked;
+const summaryText = t => shareText(t, detailsPref());
 function renderSummary(t){ $('summary').textContent = summaryText(t); }
 
 /* ---------- ações ---------- */
@@ -572,12 +616,23 @@ $('save').onclick = () => {
   $('paste').value = ''; $('detect').textContent = ''; $('dsel').value = todayKey(); $('gsel').value = '';
   render();
 };
-$('copysum').onclick = async () => {
-  const t = summaryText(todayKey());
-  try { await navigator.clipboard.writeText(t); $('copysum').textContent = 'Copiado ✔'; }
-  catch(e){ const r = document.createRange(); r.selectNodeContents($('summary')); getSelection().removeAllRanges(); getSelection().addRange(r); $('copysum').textContent = 'Selecionado: Ctrl+C'; }
-  setTimeout(() => $('copysum').textContent = 'Copiar resumo', 2000);
-};
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); say('Copiado! É só colar no grupo.'); return true; }
+  catch(e){ showTab('share'); const r = document.createRange(); r.selectNodeContents($('summary')); getSelection().removeAllRanges(); getSelection().addRange(r);
+    say('Texto selecionado: copie com Ctrl+C ou toque longo.', true); return false; }
+}
+async function shareDay(){
+  const text = shareText(todayKey(), detailsPref());
+  if (navigator.share && matchMedia('(pointer:coarse)').matches){          // celular: menu nativo (WhatsApp, Telegram…)
+    try { await navigator.share({ text }); return; } catch(e){ if (e.name === 'AbortError') return; }
+  }
+  copyText(text);
+}
+$('shareBtn').onclick = shareDay;
+$('copysum').onclick = shareDay;
+$('copyonly').onclick = () => copyText(shareText(todayKey(), detailsPref()));
+try { $('shareDetails').checked = localStorage.getItem('painel-desafios-details') !== '0'; } catch(e){}
+$('shareDetails').onchange = () => { try { localStorage.setItem('painel-desafios-details', $('shareDetails').checked ? '1' : '0'); } catch(e){} renderSummary(todayKey()); };
 
 /* exportar / importar */
 $('export').onclick = () => {
