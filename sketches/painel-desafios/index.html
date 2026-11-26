@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel de desafios diários</title>
+  <style>
+    :root{--bg:#f4f1ea;--card:#fff;--ink:#27221c;--mut:#7a6f62;--line:#e3dccf;--acc:#3a6ea5;--ok:#3f8f5a;--bad:#c0504d;--okbg:#e3f3e8;--badbg:#f8e3e2;--nbg:#e8eef6}
+    @media(prefers-color-scheme:dark){:root{--bg:#171512;--card:#221f1b;--ink:#ece6da;--mut:#9d9384;--line:#3a352d;--acc:#7fb0e0;--ok:#6cc08a;--bad:#e08581;--okbg:#1f3a2a;--badbg:#44231f;--nbg:#243244}}
+    *{box-sizing:border-box}
+    body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+    main{max-width:980px;margin:0 auto;padding:16px}
+    h1{font-size:1.35rem;margin:4px 0 2px} h2{font-size:1.05rem;margin:0 0 10px}
+    .sub{color:var(--mut);font-size:13px}
+    .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:14px 0}
+    .top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+    .badges{display:flex;gap:8px;flex-wrap:wrap}
+    .badge{background:var(--nbg);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600}
+    .grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+    .card{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+    .card.done{background:var(--okbg);border-color:var(--ok)} .card.lost{background:var(--badbg);border-color:var(--bad)}
+    .card h3{margin:0;font-size:1rem;display:flex;justify-content:space-between;gap:6px}
+    .score{font-size:13px;color:var(--mut);min-height:18px}
+    .row{display:flex;gap:6px;flex-wrap:wrap}
+    button,.btn{font:inherit;font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block}
+    button:hover,.btn:hover{border-color:var(--acc)} .primary{background:var(--acc);border-color:var(--acc);color:#fff}
+    button.on{background:var(--ok);border-color:var(--ok);color:#fff}
+    textarea,select,input[type=text],input[type=date],input[type=url]{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+    textarea{min-height:86px;resize:vertical}
+    .form{display:grid;gap:8px;grid-template-columns:1fr} @media(min-width:640px){.form{grid-template-columns:1fr 1fr}.form .full{grid-column:1/-1}}
+    .hint{font-size:12px;color:var(--mut)} .msg{font-size:13px;margin-top:6px;min-height:18px}
+    .scroll{overflow-x:auto}
+    table{border-collapse:collapse;font-size:12px;width:100%} th,td{padding:3px 4px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+    th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+    td button{width:100%;min-width:34px;padding:3px;border-radius:6px;font-size:12px;background:transparent}
+    td button.ok{background:var(--okbg);border-color:var(--ok)} td button.bad{background:var(--badbg);border-color:var(--bad)} td button.neu{background:var(--nbg)}
+    td.today,th.today{outline:2px solid var(--acc);outline-offset:-2px}
+    .stats td,.stats th{text-align:center}.stats td:first-child{text-align:left}
+    dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:560px;width:92%}
+    dialog::backdrop{background:#0008}
+    .glist{display:grid;gap:6px;margin:8px 0}
+    .grow{display:grid;grid-template-columns:34px 1fr 1.4fr auto auto;gap:6px;align-items:center}
+    @media(max-width:560px){.grow{grid-template-columns:34px 1fr auto auto}.grow .u{grid-column:1/-1}}
+    pre{white-space:pre-wrap;background:var(--nbg);padding:10px;border-radius:8px;font:13px/1.4 ui-monospace,monospace;margin:0}
+  </style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1>Painel de desafios diários</h1><div class="sub" id="today"></div></div>
+    <div class="badges" id="badges"></div>
+  </div>
+  <div class="sub" id="warn" style="color:var(--bad)"></div>
+
+  <section class="panel">
+    <h2>Hoje</h2>
+    <div class="grid" id="cards"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Registrar resultado</h2>
+    <div class="form">
+      <div><label class="hint" for="gsel">Jogo</label><select id="gsel"></select></div>
+      <div><label class="hint" for="dsel">Dia</label><input type="date" id="dsel"></div>
+      <div class="full">
+        <label class="hint" for="paste">Cole o texto do botão "Compartilhar" do jogo (opcional; sem isso só marca como feito)</label>
+        <textarea id="paste" placeholder="joguei term.ooo #1234 4/6 …"></textarea>
+        <div id="detect" class="hint"></div>
+      </div>
+      <div class="full row">
+        <button id="readclip">📋 Ler da área de transferência</button>
+        <button class="primary" id="save">Registrar</button>
+        <button id="clear">Limpar</button>
+      </div>
+    </div>
+    <div class="msg" id="msg" role="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Histórico (últimos 14 dias)</h2>
+    <div class="scroll"><table id="hist"></table></div>
+    <div class="hint" style="margin-top:6px">Clique numa célula para marcar/desmarcar aquele dia. Verde = acertou, vermelho = errou, azul = feito sem pontuação.</div>
+  </section>
+
+  <section class="panel">
+    <h2>Estatísticas</h2>
+    <div class="scroll"><table class="stats" id="stats"></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Resumo do dia para compartilhar</h2>
+    <pre id="summary"></pre>
+    <div class="row" style="margin-top:8px"><button class="primary" id="copysum">Copiar resumo</button></div>
+    <div class="hint">O resumo mostra só placar, sem os quadradinhos, para não dar spoiler.</div>
+  </section>
+
+  <section class="panel">
+    <h2>Dados e jogos</h2>
+    <div class="row">
+      <button id="manage">⚙️ Gerenciar jogos</button>
+      <button id="export">⬇️ Exportar JSON</button>
+      <label class="btn">⬆️ Importar JSON<input type="file" id="import" accept="application/json" hidden></label>
+    </div>
+    <div class="hint" style="margin-top:6px">Tudo fica só neste navegador (localStorage), sem login e sem servidor. Se limpar os dados do navegador, perde o histórico: exporte de vez em quando. Para levar ao celular: exporte aqui e importe lá.</div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog"><h2>Gerenciar jogos</h2>
+    <div class="hint">Altere nome, link ou oculte. Jogos sem link não têm botão "Jogar".</div>
+    <div class="glist" id="glist"></div>
+    <div class="row"><button type="button" id="addgame">+ Adicionar jogo</button><button type="button" id="resetgames">Restaurar lista inicial</button></div>
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="primary" value="close">Fechar</button></div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+const KEY = 'painel-desafios-v1';
+const $ = id => document.getElementById(id);
+
+/* ---------- jogos iniciais (links sem certeza ficam vazios; edite em "Gerenciar jogos") ---------- */
+const DEFAULT_GAMES = [
+  { id:'termo',      name:'Termo',      emoji:'🟩', url:'https://term.ooo',   on:true },
+  { id:'dueto',      name:'Dueto',      emoji:'🟨', url:'https://term.ooo/2', on:true },
+  { id:'quarteto',   name:'Quarteto',   emoji:'🟦', url:'https://term.ooo/4', on:true },
+  { id:'puttday',    name:'Putt.day',   emoji:'⛳', url:'https://putt.day',   on:true },
+  { id:'flagly',     name:'Flagly',     emoji:'🚩', url:'',                   on:true },
+  { id:'decola',     name:'Decola.io',  emoji:'🚀', url:'https://decola.io',  on:true },
+  { id:'farflung',   name:'Farflung',   emoji:'🌍', url:'',                   on:true },
+  { id:'wordle',     name:'Wordle',     emoji:'🔤', url:'https://www.nytimes.com/games/wordle/index.html', on:true },
+  { id:'connections',name:'Connections',emoji:'🔗', url:'https://www.nytimes.com/games/connections',       on:true },
+  { id:'worldle',    name:'Worldle',    emoji:'🗺️', url:'https://worldle.teuteuf.fr',                      on:true },
+];
+// Detecção do jogo pelo texto colado (ordem importa: mais específicos primeiro). Jogos sem regra caem no nome/domínio.
+const DETECT = [
+  ['dueto',      /\bdueto\b|\bduo\.|term\.ooo\/2/i],
+  ['quarteto',   /quarteto|term\.ooo\/4/i],
+  ['termo',      /term\.ooo|\btermo\b/i],
+  ['wordle',     /^\s*wordle\b/im],
+  ['connections',/connections/i],
+  ['worldle',    /#?worldle/i],
+  ['puttday',    /putt\.?day|\bputt\b/i],
+];
+
+/* ---------- estado ---------- */
+let mem = null, persistOK = true;
+function load(){
+  try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch(e){ persistOK = false; }
+  return mem || { v:1, games: structuredClone(DEFAULT_GAMES), log:{} };
+}
+let S = load();
+function save(){
+  mem = S;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); persistOK = true; } catch(e){ persistOK = false; }
+  $('warn').textContent = persistOK ? '' : '⚠️ Não foi possível salvar neste navegador (modo privado ou bloqueado). Exporte o JSON antes de sair.';
+}
+
+/* ---------- datas ---------- */
+const pad = n => String(n).padStart(2, '0');
+const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const addDays = (k, n) => { const [y,m,d] = k.split('-').map(Number); return keyOf(new Date(y, m-1, d+n)); };
+const todayKey = () => keyOf(new Date());
+const fmtBR = k => k.split('-').reverse().join('/');
+const wd = k => { const [y,m,d] = k.split('-').map(Number); return ['dom','seg','ter','qua','qui','sex','sáb'][new Date(y,m-1,d).getDay()]; };
+
+/* ---------- helpers ---------- */
+function h(tag, attrs = {}, ...kids){
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)){
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const safeUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch(e){ return ''; } };
+const active = () => S.games.filter(g => g.on);
+const entry = (d, g) => S.log[d]?.[g];
+function setEntry(d, g, e){ (S.log[d] ??= {})[g] = e; save(); }
+function delEntry(d, g){ if (S.log[d]){ delete S.log[d][g]; if (!Object.keys(S.log[d]).length) delete S.log[d]; } save(); }
+const slug = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'jogo';
+
+/* ---------- parser do texto de compartilhar ---------- */
+function detectGame(text){
+  if (!text.trim()) return null;
+  for (const [id, re] of DETECT) if (S.games.some(g => g.id === id) && re.test(text)) return id;
+  for (const g of S.games){                                    // jogos adicionados: nome ou domínio
+    const host = (() => { try { return new URL(g.url).hostname.replace(/^www\./,''); } catch(e){ return ''; } })();
+    if (host && text.toLowerCase().includes(host)) return g.id;
+    if (g.name.length > 3 && text.toLowerCase().includes(g.name.toLowerCase())) return g.id;
+  }
+  return null;
+}
+function parseShare(text, gameId){
+  const out = { raw: text.trim().slice(0, 800) };
+  const num = text.match(/#\s?([\d.,]+)/) || text.match(/(?:wordle|puzzle)\s+#?([\d.,]+)/i);
+  if (num) out.num = num[1];
+  if (gameId === 'connections'){                                // 🟨🟩🟦🟪: linhas de 4 quadradinhos
+    const rows = text.split('\n').map(l => [...l.matchAll(/[🟨🟩🟦🟪]/gu)].map(m => m[0])).filter(r => r.length === 4);
+    if (rows.length){
+      const solved = rows.filter(r => r.every(c => c === r[0])).length, mistakes = rows.length - solved;
+      out.win = solved === 4; out.score = out.win ? (mistakes ? `${mistakes} erro(s)` : 'perfeito') : `${solved}/4 grupos`;
+      out.n = mistakes; return out;
+    }
+  }
+  const fr = [...text.matchAll(/\b([1-9]|X)\/(\d{1,2})\b/gi)];     // 4/6, X/6, 5/7 & 4/7 (dueto/quarteto)
+  if (fr.length){
+    out.score = fr.map(m => `${m[1].toUpperCase()}/${m[2]}`).join(' · ');
+    out.win = fr.every(m => m[1].toUpperCase() !== 'X');
+    if (out.win) out.n = fr.reduce((a, m) => a + Number(m[1]), 0) / fr.length;
+    return out;
+  }
+  const st = text.match(/(\d+)\s*(?:strokes?|shots?|tacadas?|putts?|tentativas?|tries|attempts?)/i);
+  if (st){ out.score = `${st[1]} ${/tacada/i.test(st[0]) ? 'tacadas' : st[0].replace(/^\d+\s*/, '')}`; out.n = Number(st[1]); out.win = true; }
+  return out;
+}
+
+/* ---------- sequências e estatísticas ---------- */
+const doneOn = (d, id) => !!entry(d, id);
+function streak(pred){
+  const days = Object.keys(S.log).sort();
+  let cur = 0, d = todayKey();
+  if (!pred(d)) d = addDays(d, -1);
+  while (pred(d)){ cur++; d = addDays(d, -1); }
+  let best = 0, run = 0, prev = null;
+  const all = new Set(days);
+  for (const k of days){
+    if (!pred(k)) { run = 0; prev = null; continue; }
+    run = prev && addDays(prev, 1) === k ? run + 1 : 1; prev = k; best = Math.max(best, run);
+  }
+  return { cur, best: Math.max(best, cur) };
+}
+const allDone = d => { const a = active(); return a.length > 0 && a.every(g => doneOn(d, g.id)); };
+const anyDone = d => active().some(g => doneOn(d, g.id));
+
+/* ---------- render ---------- */
+function render(){
+  const t = todayKey();
+  $('today').textContent = `${wd(t)}, ${fmtBR(t)} · dia vira à meia-noite do seu fuso`;
+  const done = active().filter(g => doneOn(t, g.id)).length;
+  const sAll = streak(allDone), sAny = streak(anyDone);
+  $('badges').replaceChildren(
+    h('span', {class:'badge'}, `✅ ${done}/${active().length} hoje`),
+    h('span', {class:'badge', title:'Dias seguidos com TODOS os jogos feitos'}, `🔥 ${sAll.cur} dias completos (recorde ${sAll.best})`),
+    h('span', {class:'badge', title:'Dias seguidos com pelo menos um jogo'}, `📆 ${sAny.cur} dias jogando`)
+  );
+
+  // cartões
+  $('cards').replaceChildren(...active().map(g => {
+    const e = entry(t, g.id), st = streak(d => doneOn(d, g.id)), url = safeUrl(g.url);
+    return h('div', {class:'card' + (e ? (e.win === false ? ' lost' : ' done') : '')},
+      h('h3', {}, h('span', {}, `${g.emoji || '🎯'} ${g.name}`), h('span', {title:'sequência'}, st.cur ? `🔥${st.cur}` : '')),
+      h('div', {class:'score'}, e ? (e.score ? `${e.win === false ? '❌' : '✅'} ${e.score}${e.num ? ' · #' + e.num : ''}` : '✅ feito') : 'pendente'),
+      h('div', {class:'row'},
+        url ? h('a', {class:'btn primary', href:url, target:'_blank', rel:'noopener noreferrer'}, 'Jogar ↗') : h('span', {class:'hint'}, 'sem link'),
+        h('button', {class: e ? 'on' : '', onclick: () => toggle(t, g.id)}, e ? '✔ Feito' : 'Marcar'),
+        h('button', {onclick: () => pick(g.id), title:'Colar texto de compartilhar'}, '📋'))
+    );
+  }));
+
+  // seletor de jogo
+  const cur = $('gsel').value;
+  $('gsel').replaceChildren(h('option', {value:''}, '— escolha —'), ...active().map(g => h('option', {value:g.id}, g.name)));
+  $('gsel').value = active().some(g => g.id === cur) ? cur : '';
+  if (!$('dsel').value) $('dsel').value = t;
+  $('dsel').max = t;
+
+  renderHist(t); renderStats(); renderSummary(t);
+}
+function renderHist(t){
+  const days = Array.from({length:14}, (_, i) => addDays(t, -13 + i));
+  const head = h('tr', {}, h('th', {}, 'Jogo'), ...days.map(d => h('th', {class: d === t ? 'today' : ''}, h('div', {}, d.slice(8)), h('div', {class:'hint'}, wd(d)))));
+  const rows = active().map(g => h('tr', {}, h('td', {}, `${g.emoji || ''} ${g.name}`), ...days.map(d => {
+    const e = entry(d, g.id);
+    const label = !e ? '·' : e.score ? e.score.split(' ')[0] : '✔';
+    const cls = !e ? '' : e.win === true ? 'ok' : e.win === false ? 'bad' : 'neu';
+    return h('td', {class: d === t ? 'today' : ''}, h('button', {class:cls, title:`${g.name} ${fmtBR(d)}${e?.raw ? '\n' + e.raw : ''}`, onclick: () => toggle(d, g.id)}, label));
+  })));
+  $('hist').replaceChildren(head, ...rows);
+}
+function renderStats(){
+  const head = h('tr', {}, ...['Jogo','Dias','Acertos','Média','🔥 Atual','Recorde'].map(x => h('th', {}, x)));
+  const rows = active().map(g => {
+    const es = Object.keys(S.log).map(d => S.log[d][g.id]).filter(Boolean);
+    const withRes = es.filter(e => typeof e.win === 'boolean');
+    const wins = withRes.filter(e => e.win);
+    const nums = wins.map(e => e.n).filter(n => typeof n === 'number');
+    const st = streak(d => doneOn(d, g.id));
+    return h('tr', {}, h('td', {}, `${g.emoji || ''} ${g.name}`), h('td', {}, es.length),
+      h('td', {}, withRes.length ? `${wins.length}/${withRes.length} (${Math.round(100*wins.length/withRes.length)}%)` : '—'),
+      h('td', {}, nums.length ? (nums.reduce((a,b) => a+b, 0)/nums.length).toFixed(1) : '—'), h('td', {}, st.cur), h('td', {}, st.best));
+  });
+  $('stats').replaceChildren(head, ...rows);
+}
+function summaryText(t){
+  const a = active(), done = a.filter(g => doneOn(t, g.id)).length, sAll = streak(allDone).cur;
+  const lines = a.map(g => { const e = entry(t, g.id); return `${e ? (e.win === false ? '❌' : '✅') : '⬜'} ${g.name}${e?.score ? ' ' + e.score : ''}`; });
+  return [`📅 Desafios ${fmtBR(t)} — ${done}/${a.length}`, ...lines, sAll ? `🔥 ${sAll} dias completos seguidos` : ''].filter(Boolean).join('\n');
+}
+function renderSummary(t){ $('summary').textContent = summaryText(t); }
+
+/* ---------- ações ---------- */
+function toggle(d, id){
+  const e = entry(d, id);
+  if (!e) setEntry(d, id, { ts: Date.now() });
+  else if (!e.raw && !e.score || confirm(`Remover o registro de ${fmtBR(d)}?\n${e.score || ''}`)) delEntry(d, id);
+  render();
+}
+function pick(id){ $('gsel').value = id; $('paste').focus(); $('paste').scrollIntoView({behavior:'smooth', block:'center'}); }
+function say(t, bad){ $('msg').textContent = t; $('msg').style.color = bad ? 'var(--bad)' : 'var(--ok)'; }
+function onPasteChange(){
+  const g = detectGame($('paste').value);
+  if (g && !$('gsel').value) $('gsel').value = g;
+  $('detect').textContent = $('paste').value.trim() ? (g ? `Detectado: ${S.games.find(x => x.id === g).name}` : 'Jogo não reconhecido: escolha na lista.') : '';
+}
+$('paste').addEventListener('input', () => { $('gsel').value = ''; onPasteChange(); });
+$('readclip').onclick = async () => {
+  try { $('paste').value = await navigator.clipboard.readText(); $('gsel').value = ''; onPasteChange(); say('Texto lido. Confira e clique em Registrar.'); }
+  catch(e){ say('O navegador não deixou ler a área de transferência: cole com Ctrl+V / toque longo.', true); }
+};
+$('clear').onclick = () => { $('paste').value = ''; $('gsel').value = ''; onPasteChange(); say(''); };
+$('save').onclick = () => {
+  const id = $('gsel').value, d = $('dsel').value || todayKey(), txt = $('paste').value;
+  if (!id) return say('Escolha o jogo.', true);
+  if (d > todayKey()) return say('Dia no futuro não vale.', true);
+  const g = S.games.find(x => x.id === id).name;
+  if (!txt.trim() && entry(d, id)){                              // marcar de novo não pode apagar a pontuação já guardada
+    say(`${g} ${fmtBR(d)} já estava registrado (${entry(d, id).score || 'feito'}). Cole outro texto para substituir.`, true); return;
+  }
+  const parsed = txt.trim() ? parseShare(txt, id) : {};
+  setEntry(d, id, { ...parsed, ts: Date.now() });
+  say(`Registrado: ${g} ${fmtBR(d)}${parsed.score ? ' · ' + parsed.score : txt.trim() ? ' · sem pontuação reconhecida (texto guardado)' : ' · feito'}`);
+  $('paste').value = ''; $('detect').textContent = ''; $('dsel').value = todayKey(); $('gsel').value = '';
+  render();
+};
+$('copysum').onclick = async () => {
+  const t = summaryText(todayKey());
+  try { await navigator.clipboard.writeText(t); $('copysum').textContent = 'Copiado ✔'; }
+  catch(e){ const r = document.createRange(); r.selectNodeContents($('summary')); getSelection().removeAllRanges(); getSelection().addRange(r); $('copysum').textContent = 'Selecionado: Ctrl+C'; }
+  setTimeout(() => $('copysum').textContent = 'Copiar resumo', 2000);
+};
+
+/* exportar / importar */
+$('export').onclick = () => {
+  const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], {type:'application/json'})), download:`painel-desafios-${todayKey()}.json` });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('import').onchange = async ev => {
+  const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!j || typeof j.log !== 'object' || !Array.isArray(j.games)) throw new Error('formato');
+    if (!confirm('Mesclar o arquivo com os dados deste navegador? (registros do arquivo vencem em caso de conflito)')) return;
+    for (const [d, gs] of Object.entries(j.log)) if (/^\d{4}-\d{2}-\d{2}$/.test(d)) for (const [g, e] of Object.entries(gs)) if (e && typeof e === 'object') (S.log[d] ??= {})[g] = e;
+    for (const g of j.games) if (g && g.id && g.name && !S.games.some(x => x.id === g.id)) S.games.push({ id:String(g.id), name:String(g.name), emoji:String(g.emoji||''), url:safeUrl(g.url||''), on:g.on !== false });
+    save(); render(); say('Importado.');
+  } catch(e){ say('Arquivo inválido.', true); }
+};
+
+/* gerenciar jogos */
+function renderGames(){
+  $('glist').replaceChildren(...S.games.map((g, i) => h('div', {class:'grow'},
+    h('input', {type:'text', value:g.emoji || '', maxlength:'4', 'aria-label':'emoji', oninput: e => { g.emoji = e.target.value; save(); render(); }}),
+    h('input', {type:'text', value:g.name, 'aria-label':'nome', oninput: e => { g.name = e.target.value || g.id; save(); render(); }}),
+    h('input', {type:'url', class:'u', value:g.url, placeholder:'https://…', 'aria-label':'link', onchange: e => { g.url = e.target.value.trim() ? safeUrl(e.target.value.trim()) : ''; e.target.value = g.url; save(); render(); }}),
+    h('button', {type:'button', class: g.on ? 'on' : '', title:'mostrar/ocultar', onclick: () => { g.on = !g.on; save(); render(); renderGames(); }}, g.on ? 'visível' : 'oculto'),
+    h('button', {type:'button', title:'remover (o histórico fica guardado)', onclick: () => { if (confirm(`Remover ${g.name}? O histórico continua guardado.`)){ S.games.splice(i, 1); save(); render(); renderGames(); } }}, '🗑')
+  )));
+}
+$('manage').onclick = () => { renderGames(); $('dlg').showModal(); };
+$('addgame').onclick = () => {
+  const name = prompt('Nome do jogo:'); if (!name) return;
+  let id = slug(name), n = 2; while (S.games.some(g => g.id === id)) id = slug(name) + '-' + n++;
+  const url = safeUrl(prompt('Link (opcional, https://…):') || '');
+  S.games.push({ id, name, emoji:'🎯', url, on:true }); save(); render(); renderGames();
+};
+$('resetgames').onclick = () => {
+  if (!confirm('Restaurar a lista inicial? Jogos adicionados por você ficam ocultos, não apagados.')) return;
+  const keep = S.games.filter(g => !DEFAULT_GAMES.some(d => d.id === g.id)).map(g => ({ ...g, on:false }));
+  S.games = [...structuredClone(DEFAULT_GAMES), ...keep]; save(); render(); renderGames();
+};
+
+/* virada de dia */
+let shown = todayKey();
+setInterval(() => { if (todayKey() !== shown){ shown = todayKey(); $('dsel').value = shown; render(); } }, 30000);
+save(); render();
+</script>
+</body>
+</html>
